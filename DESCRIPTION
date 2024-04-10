@@ -1,0 +1,18 @@
+Package: fdapipeline
+Type: Package
+Title: Tools for analysing Circadian data using functional data analysis   
+Version: 0.1.0
+Author: Sarah Lock  
+Maintainer: Sarah Lock <sarah.lock@york.ac.uk>
+Description: A collection of functions for the analysis of circadian time series data, using functional data analysis methods.  
+    Use four spaces when indenting paragraphs within the Description.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports: 
+    lomb,
+    stats,
+    pracma,
+    fda,
+    fdaoutlier
+LazyData: true
+RoxygenNote: 7.3.1
