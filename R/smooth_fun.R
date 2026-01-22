@@ -1,119 +1,251 @@
-#' Compute and filter circadian time series data
+#' Smooth circadian time-series data with optional shape-based outlier detection
 #'
-#' The function is designed to smooth multiple curves represented by time-series data. It normalises each curve and organizes them into a list, removing any missing values. It then creates basis functions and functional parameters for each curve using B-splines the default is set to the number of timepoints and sets a roughness penalty. Next, it generates smooth basis functions for each curve individually. After defining a new time vector covering the range of all curves, it evaluates the smoothed curves under this new time vector. Subsequently, it combines all evaluated curves and performs an outlier detection process using the Total Variation (TV) smooth method from \code{fdaoutliers}. Any shape outliers are removed, and the remaining curves are smoothed again collectively. Finally, the function returns the smoothed curves along with the new time vector and the total curves matrix.
+#' \code{smooth_fun} smooths circadian time-series data using a functional data
+#' analysis (FDA) framework based on cubic B-spline basis functions. Each curve
+#' is optionally normalised, smoothed individually, and evaluated on a common
+#' time grid. An optional shape-based outlier detection step can be applied using
+#' total variation depth, after which the remaining curves are smoothed
+#' collectively.
 #'
+#' The function supports metadata tracking, allowing identification of samples
+#' removed during outlier detection.
 #'
-#' @param x Matrix containing data values, each row is a time point and each column corresponds to a sample.
-#' @param time matrix containing the time values.
-#' @param shape A logical indicating whether shape outlier detection should be performed
-#' @param outlier A positive integer specifying the derivative the curves will be evaluated at for outlier detection.The default is the first derivative.
+#' @param x A numeric matrix of observations, where rows correspond to time
+#'   points and columns correspond to samples.
+#' @param time A numeric matrix giving the time values corresponding to the rows
+#'   of \code{x}.
+#' @param meta An optional data frame containing sample metadata. Must include a
+#'   \code{Sample_id} column matching the column names of \code{x}.
+#' @param normalize Logical indicating whether each curve should be normalised
+#'   to the range [0, 1] prior to smoothing. Default is \code{TRUE}.
+#' @param outlier Logical indicating whether shape-based outlier detection should
+#'   be performed using total variation depth. If \code{FALSE}, all curves are
+#'   retained and no outlier detection is applied. Default is \code{FALSE}.
+#' @param deriv Integer specifying the derivative order at which curves are
+#'   evaluated for outlier detection. Default is 1 (first derivative).
+#' @param nbasis Integer specifying the maximum number of B-spline basis
+#'   functions used when smoothing individual curves. The effective number of
+#'   basis functions is constrained by the number of observations per curve.
+#'   Default is 50.
+#' @param lambda Numeric value controlling the roughness penalty applied during
+#'   smoothing of individual curves. Higher values produce smoother curves.
+#'   Default is 1.
 #'
-#' @details This function allows estimation of functions of time series data using cubic b-spline basis system.
-
+#' @details
+#' Each curve is first optionally normalised and stripped of missing values.
+#' Curves are smoothed individually using cubic B-spline basis functions with a
+#' second-derivative roughness penalty. Functional parameter objects are cached
+#' and reused for curves sharing the same basis configuration to improve
+#' computational efficiency.
 #'
-#' @return A smooth functional data object
+#' When \code{outlier = TRUE}, curves are smoothed again using a higher roughness
+#' penalty and evaluated at the specified derivative order. Shape outliers are
+#' identified using total variation depth via
+#' \code{fdaoutlier::tvdmss} and removed prior to final smoothing.
+#'
+#' @return A list with the following components:
+#' \describe{
+#'   \item{curves}{A numeric matrix of smoothed curves evaluated on a common time
+#'     grid, with columns corresponding to retained samples.}
+#'   \item{smooth}{A functional data object containing the final smoothed curves.}
+#'   \item{time}{A numeric vector giving the common time grid used for evaluation.}
+#'   \item{meta_kept}{A data frame of metadata for retained samples, or
+#'     \code{NULL} if no metadata were supplied.}
+#'   \item{meta_removed}{A data frame of metadata for samples removed during
+#'     outlier detection, or \code{NULL} if no samples were removed.}
+#' }
 #'
 #' @import fda
 #' @import stats
 #' @import fdaoutlier
 #' @export
-#' @examples
+#'
+#' #' @examples
 #' data(mydata_example)
-#' data <- mydata_example[,-1]
-#' time <- as.matrix(mydata_example[,1])
-#' smooth_curves <- smooth_fun(data, time, shape = FALSE, outlier = 1)
+#' data <- mydata_example[, -1]
+#' time <- as.matrix(mydata_example[, 1])
+#'
+#' smooth_curves <- smooth_fun(
+#'   x = data,
+#'   time = time,
+#'   nbasis = 40,
+#'   lambda = 1,
+#'   shape = FALSE
+#' )
 #'
 #'
 #'
-
-smooth_fun <- function(x, time, outlier = TRUE, shape = TRUE) {
+smooth_fun <- function(
+    x,
+    time,
+    meta = NULL,
+    normalize = TRUE,
+    outlier = FALSE,
+    deriv = 1,
+    nbasis = 50,
+    lambda = 1
+)
+{
 
   if (!any(apply(x, 2, is.numeric)))
     stop("values are NOT numeric. This is not permitted")
 
   if (!is.matrix(time))
     stop("Time is NOT matrix array. This is not permitted")
-  # NORMALISE each curve
-  norm_all <- apply(x, MARGIN = 2, FUN = function(X) (X - min(X, na.rm = TRUE))/diff(range(X, na.rm = TRUE)))
-  #create list containing each column and the time column with NAs removed
-  everycurve <- list()
-  for (i in 1:ncol(norm_all)) {
 
-    #combine time column with every every column individually
-    combine <- cbind(time,norm_all[,i])
-    #append list with each time and curve combo with NAs removed.
+  ## ---- META CHECKS
+  if (!is.null(meta)) {
+    if (!"Sample_id" %in% colnames(meta))
+      stop("meta must contain a Sample_id column")
+
+    if (is.null(colnames(x)))
+      stop("x must have column names matching meta$Sample_id")
+
+    if (!all(colnames(x) %in% meta$Sample_id))
+      stop("All curve columns must be present in meta$Sample_id")
+
+    meta <- meta[match(colnames(x), meta$Sample_id), ]
+  }
+
+  sample_id <- colnames(x)
+
+  ## ---- OPTIONAL NORMALISATION
+  if (normalize) {
+    x_use <- apply(
+      x,
+      2,
+      function(X)
+        (X - min(X, na.rm = TRUE)) / diff(range(X, na.rm = TRUE))
+    )
+  } else {
+    x_use <- x
+  }
+
+  ## ---- REMOVE NAs PER CURVE
+  everycurve <- vector("list", ncol(x_use))
+  for (i in seq_len(ncol(x_use))) {
+    combine <- cbind(time, x_use[, i])
     everycurve[[i]] <- na.omit(combine)
   }
-  #now make a basis functions and functional parameter for each one....
-  sp_fdobj <- list()
-  for (i in 1:ncol(norm_all)) {
-    #range and number of basis for each bassis functtions
-    range <- c(min(everycurve[[i]][,1]), max(everycurve[[i]][,1]))
-    basis_num <- length(everycurve[[i]][,1]) + 2
-    # basis function
-    sp_BASIS_bspline <- fda::create.bspline.basis(rangeval = range ,norder = 4,nbasis = basis_num)
-    #Define Functional Parameter with Roughness Penalty
-    sp_fdobj[[i]] <- fda::fdPar(sp_BASIS_bspline,Lfdobj = 2,lambda = 1)
-  }
-  # for each curve make the smoothbasis
-  sp_smoothbasis <- list()
-  for (i in 1:ncol(norm_all)) {
-    sp_smoothbasis[[i]] <- fda::smooth.basis(argvals = everycurve[[i]][,1], y = everycurve[[i]][,2], fdParobj = sp_fdobj[[i]])
-  }
-  #make a new time vector that will cover all the different times
-  #the max of the minamum ZT time and the minamum of the maximum time
-  min_time <- max(sapply(everycurve, function(x) min(x[,1])))
-  max_time <- min(sapply(everycurve, function(x) max(x[,1])))
-  new_time <- seq(min_time,max_time,length.out = 300)
+  ## ---- BASIS + FDPAR PER CURVE (CACHED)
+  sp_fdobj <- vector("list", ncol(x_use))
+  fdpar_cache <- new.env(parent = emptyenv())
 
-  #evaluate the curves all under this new time
-  eval_curves <- sapply(sp_smoothbasis, function(x) fda::eval.fd(new_time,x$fd))
-  colnames(eval_curves) <- colnames(norm_all)
+  for (i in seq_len(ncol(x_use))) {
 
-  #now create smooth functions for all cuvres together!
+    curve <- everycurve[[i]]
+    nobs  <- nrow(curve)
+
+    if (nobs < 5)
+      stop("Each curve must have at least 5 observations for smoothing.")
+
+    nbasis_i <- min(nbasis, nobs - 1)
+    key <- paste(nbasis_i, round(min(curve[,1]), 3), round(max(curve[,1]), 3))
+
+    if (!exists(key, fdpar_cache)) {
+      basis <- fda::create.bspline.basis(
+        rangeval = range(curve[, 1]),
+        norder   = 4,
+        nbasis   = nbasis_i
+      )
+      fdpar_cache[[key]] <- fda::fdPar(basis, Lfdobj = 2, lambda = lambda)
+    }
+
+    sp_fdobj[[i]] <- fdpar_cache[[key]]
+  }
+
+  ## ---- SMOOTH EACH CURVE
+  sp_smoothbasis <- vector("list", ncol(x_use))
+  for (i in seq_len(ncol(x_use))) {
+    sp_smoothbasis[[i]] <- fda::smooth.basis(
+      argvals = everycurve[[i]][, 1],
+      y       = everycurve[[i]][, 2],
+      fdParobj = sp_fdobj[[i]]
+    )
+  }
+
+  ## ---- COMMON TIME GRID
+  min_time <- max(sapply(everycurve, function(x) min(x[, 1])))
+  max_time <- min(sapply(everycurve, function(x) max(x[, 1])))
+  new_time <- seq(min_time, max_time, length.out = 300)
+
+  ## ---- EVALUATE CURVES
+  eval_curves <- vapply(
+    sp_smoothbasis,
+    function(x) fda::eval.fd(new_time, x$fd),
+    FUN.VALUE = numeric(length(new_time))
+  )
+  colnames(eval_curves) <- sample_id
+
   Total_curves <- data.matrix(eval_curves)
-  BASIS_bspline <- fda::create.bspline.basis(rangeval = c(min(new_time),max(new_time)),norder = 4,nbasis = 302)
-  fdobj_outlier = fda::fdPar(BASIS_bspline,Lfdobj = 2,lambda = 50)
-  sp_totalsmooth_outlier <- fda::smooth.basis(argvals = new_time, y = Total_curves, fdParobj = fdobj_outlier)
+
+  ## ---- OUTLIER SMOOTH
+  nbasis_outlier <- min(100, length(new_time) - 1)
+
+  BASIS_bspline <- fda::create.bspline.basis(
+    rangeval = range(new_time),
+    norder   = 4,
+    nbasis   = nbasis_outlier
+  )
 
 
-  v_sp_totalsmooth_outlier <- fda::eval.fd(new_time,sp_totalsmooth_outlier$fd, outlier)
-  #transpose and do tvs mss outlier detection....
+  fdobj_outlier <- fda::fdPar(BASIS_bspline, Lfdobj = 2, lambda = 50)
 
-  if (shape) {
-    sp_transposed_curves <- data.matrix(t(v_sp_totalsmooth_outlier))
+  sp_totalsmooth_outlier <- fda::smooth.basis(
+    argvals = new_time,
+    y       = Total_curves,
+    fdParobj = fdobj_outlier
+  )
 
+  v_sp_totalsmooth_outlier <- fda::eval.fd(
+    new_time,
+    sp_totalsmooth_outlier$fd,
+    deriv
+  )
+
+
+  ## ---- SHAPE OUTLIER DETECTION
+  removed_ids <- NULL
+  meta_removed <- NULL
+
+  if (outlier) {
+    sp_transposed_curves <- t(v_sp_totalsmooth_outlier)
 
     tvoutlier <- fdaoutlier::tvdmss(dts = sp_transposed_curves)
 
-    #tvoutlier$shape_outliers
-    #tvoutlier$magnitude_outliers
     if (!is.null(tvoutlier$shape_outliers)) {
-      Total_curves <- data.matrix(Total_curves[, -tvoutlier$shape_outliers])
+
+      removed_idx <- tvoutlier$shape_outliers
+
+      removed_ids <- sample_id[removed_idx]
+      sample_id   <- sample_id[-removed_idx]
+
+      Total_curves <- Total_curves[, -removed_idx, drop = FALSE]
+
+      if (!is.null(meta)) {
+        meta_removed <- meta[meta$Sample_id %in% removed_ids, ]
+        meta <- meta[meta$Sample_id %in% sample_id, ]
+      }
     }
   }
-  fdobj = fda::fdPar(BASIS_bspline,Lfdobj = 2,lambda = 1)
-  sp_totalsmooth <- fda::smooth.basis(argvals = new_time, y = Total_curves, fdParobj = fdobj)
 
-  return(sp_totalsmooth)
-  return(new_time)
-  return(Total_curves)
+  ## ---- FINAL SMOOTH
+  fdobj <- fda::fdPar(BASIS_bspline, Lfdobj = 2, lambda = 1)
+
+  sp_totalsmooth <- fda::smooth.basis(
+    argvals = new_time,
+    y       = Total_curves,
+    fdParobj = fdobj
+  )
+
+  colnames(Total_curves) <- sample_id
+
+  ## ---- RETURN
+  return(list(
+    curves        = Total_curves,
+    smooth        = sp_totalsmooth,
+    time          = new_time,
+    meta_kept     = meta,
+    meta_removed  = meta_removed
+  ))
 }
-
-
-
-
-
-# create basis function
-# CV estimation
-# create functional data object
-# FDA outlier.....
-
-
-
-
-
-
-
-
-

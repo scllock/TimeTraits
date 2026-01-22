@@ -1,7 +1,7 @@
 #' Arabidopsis thaliana luciferase experiment
 #'
 #' Data from a luciferase experiment looking at response to changes in photo period.
-#' Arabidopsis, with data on phyB mutants and WS-2 parent lines, the outcome is raw counts per second (cps) of each plants luminscence at increments over 166 hours. Plants were either subjected to entrainment under short day (8 hours light, 16 hours dark) or long day (16 hours light, 8 hours dark) then shifted to the opposite condition during the expermient. Controls were also carried out. #'
+#' Arabidopsis, with data on phyB mutants and WS-2 parent lines, the outcome is raw counts per second (cps) of each plants luminscence at increments over 166 hours. Plants were subjected to entrainment under short day (8 hours light, 16 hours dark) then shifted to long day (16 hours light, 8 hours dark). Controls were also carried out. #'
 #'
 #'
 #' @docType data
