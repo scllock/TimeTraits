@@ -1,6 +1,6 @@
-# fdapipeline
+# TimeTraits
 
-`fdapipeline` provides a set of tools for analysing circadian time-series data
+`TimeTraits` provides a set of tools for analysing biological time-series data
 using functional data analysis (FDA). The package is designed to support
 end-to-end workflows, from smoothing rhythmic time series to extracting
 group-level traits from functional principal component analysis (FPCA).
@@ -13,7 +13,7 @@ patterns across experimental groups, time windows, or curve derivatives.
 
 ## Features
 
-- Smoothing of circadian time-series data using functional data representations
+- Smoothing of biological time-series data using functional data representations
 - Functional principal component analysis (FPCA) of smoothed curves
 - Extraction of group-level FPCA-derived traits
 - Support for multiple curve derivatives (e.g. 0th, 1st, 2nd)
@@ -24,8 +24,8 @@ patterns across experimental groups, time windows, or curve derivatives.
 
 ## Installation
 
-You can install the development version of `fdapipeline` directly from GitHub:
+You can install the development version of `TimeTraits` directly from GitHub:
 
 ```r
 # install.packages("devtools")
-devtools::install_github("scllock/fdapipeline")
+devtools::install_github("scllock/TimeTraits")
