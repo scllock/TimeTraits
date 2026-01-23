@@ -173,16 +173,26 @@ functional_traits <- function(
   }
 
   # ------------------ COMBINE SEGMENTS ------------------
-  common_time <- time
 
-  all_values <- fda::eval.fd(common_time, smooth_out$fd)
+  all_values_list <- list()
+  time_list       <- list()
 
-  # replicate curves per segment
-  all_values <- do.call(cbind, replicate(
-    length(segments),
-    all_values,
-    simplify = FALSE
-  ))
+  for (seg_name in names(segments)) {
+
+    seg <- segments[[seg_name]]
+    idx <- which(time >= seg[1] & time <= seg[2])
+
+    time_list[[seg_name]] <- time[idx]
+
+    all_values_list[[seg_name]] <-
+      fda::eval.fd(time[idx], smooth_out$fd)
+  }
+
+  # Ensure common time grid per segment
+  common_time <- time_list[[1]]
+
+  # Stack segment-specific values
+  all_values <- do.call(cbind, all_values_list)
 
   all_segments <- rep(names(eval_list), each = n_curves)
   all_sample_ids <- rep(sample_ids, times = length(eval_list))
