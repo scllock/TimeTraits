@@ -1,18 +1,29 @@
 Package: fdapipeline
 Type: Package
-Title: Tools for analysing Circadian data using functional data analysis   
+Title: Functional Data Analysis Pipelines for Circadian Time-Series Data
 Version: 0.1.0
-Author: Sarah Lock  
-Maintainer: Sarah Lock <sarah.lock@york.ac.uk>
-Description: A collection of functions for the analysis of circadian time series data, using functional data analysis methods.  
-    Use four spaces when indenting paragraphs within the Description.
+Authors@R: 
+    person("Sarah", "Lock", 
+           email = "sarah.lock@york.ac.uk", 
+           role = c("aut", "cre"))
+Description: Provides a pipeline of tools for analysing circadian 
+    time-series data using functional data analysis (FDA). The package 
+    supports smoothing of rhythmic time series, functional principal 
+    component analysis (FPCA), and extraction of group-level traits from 
+    functional representations. Analyses can incorporate multiple curve 
+    derivatives and optional temporal segmentation, enabling comparative 
+    analysis of circadian dynamics across experimental groups and time 
+    windows.
+URL: https://github.com/scllock/fdapipeline
+BugReports: https://github.com/scllock/fdapipeline/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
-Imports: 
-    lomb,
+Depends:R (>= 3.5.0)
+Imports:
     stats,
     pracma,
+    lomb,
     fda,
     fdaoutlier
 LazyData: true
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2

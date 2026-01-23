@@ -2,11 +2,12 @@
 % Please edit documentation in R/filter_curves.R
 \name{filter_curves}
 \alias{filter_curves}
-\title{Filter curves based on criteria}
+\title{Filter, detrend, and quality-control luminescence time-series data}
 \usage{
 filter_curves(
   x,
   time,
+  meta = NULL,
   from = min(time, na.rm = TRUE),
   to = max(time, na.rm = TRUE),
   min_lum = 0,
@@ -14,31 +15,76 @@ filter_curves(
 )
 }
 \arguments{
-\item{x}{Matrix containing data values, each row is a time point and each column corresponds to a sample, can be a sparse matrix.}
+\item{x}{A numeric matrix of luminescence values, where rows correspond to
+time points and columns correspond to samples. Sparse matrices are allowed.}
 
-\item{time}{Vector containing the time values.}
+\item{time}{A numeric vector giving the time points corresponding to the rows
+of \code{x}.}
 
-\item{from}{An integer specifying the time point to begin analysis. The default is the minimum of the time vector.}
+\item{meta}{An optional data frame containing sample metadata. Must include
+a \code{Sample_id} column and may include a \code{Genotype} column.}
 
-\item{to}{An integer specifying the time point to end analysis. The default is the maximum of the time vector.}
+\item{from}{Numeric value specifying the start time for analysis. Defaults
+to the minimum of \code{time}.}
 
-\item{min_lum}{An integer specifying the minimum luminescence value to exclude samples. Default is 0.}
+\item{to}{Numeric value specifying the end time for analysis. Defaults to
+the maximum of \code{time}.}
 
-\item{periodogram_length}{An integer specifying the number of hours for the Lomb-Scargle periodogram to be performed. Default is NULL and set to the length of \code{time}.}
+\item{min_lum}{Numeric threshold specifying the minimum luminescence value
+required for a sample to be retained. Samples with a minimum value less
+than or equal to this threshold are removed. Default is 0.}
+
+\item{periodogram_length}{Numeric value specifying the length (in the same
+units as \code{time}) of the time window used for Lomb–Scargle periodogram
+analysis. If \code{NULL}, the full selected time range is used.}
 }
 \value{
-A matrix array is returned with filtered columns and rows based on selected parameters.
-install.packages("devtools") and install.packages(roxygen2)
+A list with the following elements:
+\describe{
+  \item{curves}{A data frame containing the time vector and detrended
+    luminescence curves that passed all filtering steps.}
+  \item{meta_kept}{A data frame of metadata corresponding to retained samples,
+    or \code{NULL} if no metadata were supplied.}
+  \item{removed}{A data frame logging samples removed during filtering and
+    the reason for removal, or \code{NULL} if no samples were removed.}
+}
 }
 \description{
-The filter_curves function begins determining the time range for analysis and subsetting the data accordingly (default is full length of input). Samples with luminescence values below a specified threshold are filtered out (default is 0). The function applies linear regression to estimate and then remove trends from the curves, focusing on oscillatory components. Lomb-Scargle periodogram analysis is performed to detect rhythmic patterns in the detrended data (default is full length of input), followed by peak detection to identify significant periodic components. Samples failing to meet a significance threshold p > 0.001 in the periodogram analysis are filtered out. Finally, the function constructs and returns a filtered data matrix containing the specified time vector and curves that pass the filtering criteria, ready for further analysis or visualisation. Overall, \code{filter_curves} provides a comprehensive tool for preprocessing and analysing luminescence data, ensuring that only relevant and significant samples are retained for downstream analyses.
+\code{filter_curves} preprocesses luminescence time-series data by applying
+a series of quality control and rhythm-detection steps. The function first
+subsets the data to a specified time window, removes samples with low signal
+intensity, detrends each time series using linear regression, and then
+assesses rhythmicity using Lomb–Scargle periodogram analysis. Only samples
+showing statistically significant rhythmic components are retained.
 }
 \details{
-This function allows for the filtering of luminescence data based on time points and a minimum luminescence threshold in order for the further analysis. Using lomb-scargle periodogram to determine if each sample contains rhythmic data the non-rhythmic data is removed. See X function
+The function returns detrended curves that pass all filtering criteria,
+along with optional metadata for retained samples and a log of samples
+removed at each step.
+
+
+After subsetting the data to the requested time window, samples are filtered
+based on minimum luminescence to remove low-signal or failed measurements.
+Each remaining time series is detrended by fitting a linear model against
+time and extracting residuals. Rhythmicity is then assessed using a
+Lomb–Scargle periodogram over periods between 18 and 30 hours. Samples whose
+strongest spectral peak does not exceed the corresponding significance
+threshold are classified as non-rhythmic and removed.
+
+A record of all removed samples and the reason for their removal is returned
+to support transparent quality control.
 }
 \examples{
 data(mydata_example)
-data <- mydata_example[,-1]
-time <- as.matrix(mydata_example[,1])
-o <- filter_curves(data, time, from = 24, to = 144, min_lum = 200, periodogram_length = 48)
+data <- mydata_example[, -1]
+time <- as.numeric(mydata_example[, 1])
+
+res <- filter_curves(
+  x = data,
+  time = time,
+  from = 24,
+  to = 144,
+  min_lum = 200,
+  periodogram_length = 48
+)
 }

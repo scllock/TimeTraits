@@ -63,7 +63,7 @@
 #'     group, segment, and derivative information.}
 #'   \item{fpca}{A named list of \code{\link[fda]{pca.fd}} objects, one per
 #'     derivative.}
-#'   \item{meta}{The metadata data frame aligned to the FPCA input order.}
+#'   \item{meta}{The metadata data frame aligned to the FPCA input order.Is two column dataframe with 'Sample_id' and Genotype"}
 #' }
 #'
 #' @details
@@ -76,25 +76,22 @@
 #' Convex hull area is computed in PC1--PC2 space only and requires at least
 #' three samples per group and segment.
 #'
-#' @seealso \code{\link[fda]{pca.fd}}, \code{\link[fda]{fdSmooth}},
+#' @seealso \code{\link[fda]{pca.fd}}, \code{\link[fdapipeline]{smooth_fun}},
 #'   \code{\link[fda]{eval.fd}}
+#' @importFrom grDevices chull
 #' @export
 #' @examples
-#' \dontrun{
-#' fpca_res <- functional_traits(
-#'   smooth_out = smooth_data,
-#'   time       = time_vec,
-#'   meta       = meta_df,
-#'   n_pc       = 3,
-#'   derivative = c(0, 1, 2),
-#'   segments   = list(
-#'     pre  = c(56, 104),
-#'     post = c(104, 152)
-#'   )
-#' )
+#'
+#' time_vec <- matrix(seq(0, 48, length.out = 100))
+#' raw_data <- matrix(sin(2 * pi * time_vec / 24) +
+#' rnorm(100, 0, 0.1),ncol = 5,dimnames = list(NULL, c("C1", "C2", "C3","C4","C5")))
+#' smooth_data <- smooth_fun(raw_data, time_vec)
+#' meta_df <- data.frame(Sample_id = colnames(raw_data), Genotype = "A")
+#' fpca_res <- functional_traits(smooth_out = smooth_data$smooth,
+#' time = time_vec,meta= meta_df,n_pc= 2)
 #'
 #' head(fpca_res$traits)
-#' }
+#'
 #'
 
 functional_traits <- function(
@@ -106,45 +103,45 @@ functional_traits <- function(
     derivative = c(0, 1, 2),
     n_pc = NULL,
     segments = NULL,
-    centerfns = FALSE) 
+    centerfns = FALSE)
  {
-  
+
   # ------------------ checks ------------------
   if (!inherits(smooth_out, "fdSmooth"))
     stop("smooth_out must be smooth.basis output from smooth_fun()")
-  
+
   sample_ids <- colnames(smooth_out$fd$coefs)
   n_curves <- length(sample_ids)
-  
+
   # ------------------ metadata ------------------
   if (!is.null(meta)) {
-    
+
     if (!all(c("Sample_id", group_col) %in% colnames(meta)))
       stop("meta must contain Sample_id and the specified group_col")
-    
+
     meta <- meta[match(sample_ids, meta$Sample_id), ]
-    
+
     if (any(is.na(meta$Sample_id)))
       stop("Sample_id mismatch between smooth_out and meta")
-    
+
     groups <- as.factor(meta[[group_col]])
-    
+
   } else {
-    
+
     if (is.null(groups))
       stop("Either meta or groups must be provided")
-    
+
     if (length(groups) != n_curves)
       stop("Length of groups must match number of curves")
-    
+
     groups <- as.factor(groups)
     meta <- data.frame(Sample_id = sample_ids, group = groups)
   }
-  
+
   # ------------------ segments ------------------
   if (is.null(segments))
     segments <- list(all = range(time))
-  
+
   # ------------------ helpers ------------------
   segment_eval <- function(fd, seg, time) {
     idx <- which(time >= seg[1] & time <= seg[2])
@@ -153,7 +150,7 @@ functional_traits <- function(
       values = fda::eval.fd(time[idx], fd)
     )
   }
-  
+
   hull_area <- function(x, y) {
     if (length(x) < 3) return(NA_real_)
     idx <- chull(x, y)
@@ -163,10 +160,10 @@ functional_traits <- function(
         poly[-nrow(poly),1] * poly[-1,2]
     )) / 2
   }
-  
+
   # ================== EVALUATE ALL SEGMENTS ==================
   eval_list <- list()
-  
+
   for (seg_name in names(segments)) {
     eval_list[[seg_name]] <- segment_eval(
       smooth_out$fd,
@@ -174,30 +171,30 @@ functional_traits <- function(
       time
     )
   }
-  
+
   # ------------------ COMBINE SEGMENTS ------------------
   common_time <- time
-  
+
   all_values <- fda::eval.fd(common_time, smooth_out$fd)
-  
+
   # replicate curves per segment
   all_values <- do.call(cbind, replicate(
     length(segments),
     all_values,
     simplify = FALSE
   ))
-  
+
   all_segments <- rep(names(eval_list), each = n_curves)
   all_sample_ids <- rep(sample_ids, times = length(eval_list))
   all_groups <- rep(groups, times = length(eval_list))
-  
+
   # ------------------ RE-SMOOTH COMBINED DATA ------------------
   basis <- fda::create.bspline.basis(
     rangeval = range(common_time),
     norder = 4,
     nbasis = min(length(common_time) - 1, 50)
   )
-  
+
   fd_all <- fda::smooth.basis(
     argvals = common_time,
     y = all_values,
@@ -207,34 +204,34 @@ functional_traits <- function(
   trait_list <- list()
   score_list <- list()
   fpca_list  <- list()
-  
+
   for (d in derivative) {
-    
+
     fd_deriv <- fda::deriv.fd(fd_all, d)
-    
+
     fpca <- fda::pca.fd(
       fd_deriv,
       nharm = n_pc,
       centerfns = centerfns
     )
-    
+
     fpca_list[[paste0("deriv_", d)]] <- fpca
-    
+
     scores <- as.data.frame(fpca$scores)
     colnames(scores) <- paste0("PC", seq_len(ncol(scores)))
-    
+
     scores$Sample_id <- all_sample_ids
     scores$group <- all_groups
     scores$segment <- all_segments
     scores$derivative <- d
-    
+
     score_list[[paste0("deriv_", d)]] <- scores
-    
+
     # ------------------ PC summary traits ------------------
     pc_traits <- do.call(
       rbind,
       lapply(seq_len(ncol(scores) - 4), function(pc) {
-        
+
         agg <- aggregate(
           scores[[pc]],
           by = list(
@@ -244,7 +241,7 @@ functional_traits <- function(
           ),
           FUN = function(x) c(mean = mean(x), sd = sd(x), n = length(x))
         )
-        
+
         do.call(
           rbind,
           lapply(seq_len(nrow(agg)), function(i) {
@@ -268,13 +265,13 @@ functional_traits <- function(
     split(scores, list(scores$group, scores$segment, scores$derivative),
           drop = TRUE) |>
       lapply(function(df) {
-        
+
         out <- list()
-        
+
         for (pc in paste0("PC", seq_len(ncol(scores) - 4))) {
           mu <- mean(df[[pc]])
           d0 <- abs(df[[pc]] - mu)
-          
+
           out[[pc]] <- data.frame(
             group      = df$group[1],
             segment    = df$segment[1],
@@ -285,7 +282,7 @@ functional_traits <- function(
             n          = length(d0)
           )
         }
-        
+
         hull <- if (all(c("PC1", "PC2") %in% colnames(df))) {
           data.frame(
             group      = df$group[1],
@@ -297,7 +294,7 @@ functional_traits <- function(
             n          = nrow(df)
           )
         }
-        
+
         do.call(rbind, c(out, list(hull)))
       })
   )

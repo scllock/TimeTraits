@@ -2,33 +2,97 @@
 % Please edit documentation in R/smooth_fun.R
 \name{smooth_fun}
 \alias{smooth_fun}
-\title{Compute and filter circadian time series data}
+\title{Smooth circadian time-series data with optional shape-based outlier detection}
 \usage{
-smooth_fun(x, time, outlier = TRUE, shape = TRUE)
+smooth_fun(
+  x,
+  time,
+  meta = NULL,
+  normalize = TRUE,
+  outlier = FALSE,
+  deriv = 1,
+  nbasis = 50,
+  lambda = 1
+)
 }
 \arguments{
-\item{x}{Matrix containing data values, each row is a time point and each column corresponds to a sample.}
+\item{x}{A numeric matrix of observations, where rows correspond to time
+points and columns correspond to samples.}
 
-\item{time}{matrix containing the time values.}
+\item{time}{A numeric matrix giving the time values corresponding to the rows
+of \code{x}.}
 
-\item{outlier}{A positive integer specifying the derivative the curves will be evaluated at for outlier detection.The default is the first derivative.}
+\item{meta}{An optional data frame containing sample metadata. Must include a
+\code{Sample_id} column matching the column names of \code{x}.}
 
-\item{shape}{A logical indicating whether shape outlier detection should be performed}
+\item{normalize}{Logical indicating whether each curve should be normalised
+to the range [0, 1] prior to smoothing. Default is \code{TRUE}.}
+
+\item{outlier}{Logical indicating whether shape-based outlier detection should
+be performed using total variation depth. If \code{FALSE}, all curves are
+retained and no outlier detection is applied. Default is \code{FALSE}.}
+
+\item{deriv}{Integer specifying the derivative order at which curves are
+evaluated for outlier detection. Default is 1 (first derivative).}
+
+\item{nbasis}{Integer specifying the maximum number of B-spline basis
+functions used when smoothing individual curves. The effective number of
+basis functions is constrained by the number of observations per curve.
+Default is 50.}
+
+\item{lambda}{Numeric value controlling the roughness penalty applied during
+smoothing of individual curves. Higher values produce smoother curves.
+Default is 1.}
 }
 \value{
-A smooth functional data object
+A list with the following components:
+\describe{
+  \item{curves}{A numeric matrix of smoothed curves evaluated on a common time
+    grid, with columns corresponding to retained samples.}
+  \item{smooth}{A functional data object containing the final smoothed curves.}
+  \item{time}{A numeric vector giving the common time grid used for evaluation.}
+  \item{meta_kept}{A data frame of metadata for retained samples, or
+    \code{NULL} if no metadata were supplied.}
+  \item{meta_removed}{A data frame of metadata for samples removed during
+    outlier detection, or \code{NULL} if no samples were removed.}
+}
 }
 \description{
-The function is designed to smooth multiple curves represented by time-series data. It normalises each curve and organizes them into a list, removing any missing values. It then creates basis functions and functional parameters for each curve using B-splines the default is set to the number of timepoints and sets a roughness penalty. Next, it generates smooth basis functions for each curve individually. After defining a new time vector covering the range of all curves, it evaluates the smoothed curves under this new time vector. Subsequently, it combines all evaluated curves and performs an outlier detection process using the Total Variation (TV) smooth method from \code{fdaoutliers}. Any shape outliers are removed, and the remaining curves are smoothed again collectively. Finally, the function returns the smoothed curves along with the new time vector and the total curves matrix.
+\code{smooth_fun} smooths circadian time-series data using a functional data
+analysis (FDA) framework based on cubic B-spline basis functions. Each curve
+is optionally normalised, smoothed individually, and evaluated on a common
+time grid. An optional shape-based outlier detection step can be applied using
+total variation depth, after which the remaining curves are smoothed
+collectively.
 }
 \details{
-This function allows estimation of functions of time series data using cubic b-spline basis system.
+The function supports metadata tracking, allowing identification of samples
+removed during outlier detection.
+
+
+Each curve is first optionally normalised and stripped of missing values.
+Curves are smoothed individually using cubic B-spline basis functions with a
+second-derivative roughness penalty. Functional parameter objects are cached
+and reused for curves sharing the same basis configuration to improve
+computational efficiency.
+
+When \code{outlier = TRUE}, curves are smoothed again using a higher roughness
+penalty and evaluated at the specified derivative order. Shape outliers are
+identified using total variation depth via
+\code{fdaoutlier::tvdmss} and removed prior to final smoothing.
 }
 \examples{
 data(mydata_example)
-data <- mydata_example[,-1]
-time <- as.matrix(mydata_example[,1])
-smooth_curves <- smooth_fun(data, time, shape = FALSE, outlier = 1)
+data <- mydata_example[, -1]
+time <- as.matrix(mydata_example[, 1])
+
+smooth_curves <- smooth_fun(
+  x = data,
+  time = time,
+  nbasis = 40,
+  lambda = 1,
+  outlier = FALSE
+)
 
 
 

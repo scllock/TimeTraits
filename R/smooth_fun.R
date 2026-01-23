@@ -60,7 +60,7 @@
 #' @import fdaoutlier
 #' @export
 #'
-#' #' @examples
+#' @examples
 #' data(mydata_example)
 #' data <- mydata_example[, -1]
 #' time <- as.matrix(mydata_example[, 1])
@@ -70,7 +70,7 @@
 #'   time = time,
 #'   nbasis = 40,
 #'   lambda = 1,
-#'   shape = FALSE
+#'   outlier = FALSE
 #' )
 #'
 #'
