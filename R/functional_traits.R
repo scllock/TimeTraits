@@ -91,7 +91,7 @@
 #' time = time_vec,meta= meta_df,n_pc= 2)
 #'
 #' head(fpca_res$traits)
-#'
+#' plot(fpca_res$scores[,1],fpca_res$scores[,2])
 #'
 
 functional_traits <- function(
@@ -106,14 +106,14 @@ functional_traits <- function(
     centerfns = FALSE)
  {
 
-  # ------------------ checks ------------------
+  #  checks
   if (!inherits(smooth_out, "fdSmooth"))
     stop("smooth_out must be smooth.basis output from smooth_fun()")
 
   sample_ids <- colnames(smooth_out$fd$coefs)
   n_curves <- length(sample_ids)
 
-  # ------------------ metadata ------------------
+  # metadata
   if (!is.null(meta)) {
 
     if (!all(c("Sample_id", group_col) %in% colnames(meta)))
@@ -138,11 +138,11 @@ functional_traits <- function(
     meta <- data.frame(Sample_id = sample_ids, group = groups)
   }
 
-  # ------------------ segments ------------------
+  # segments
   if (is.null(segments))
     segments <- list(all = range(time))
 
-  # ------------------ helpers ------------------
+  # helpers
   segment_eval <- function(fd, seg, time) {
     idx <- which(time >= seg[1] & time <= seg[2])
     list(
@@ -161,7 +161,7 @@ functional_traits <- function(
     )) / 2
   }
 
-  # ================== EVALUATE ALL SEGMENTS ==================
+  # EVALUATE ALL SEGMENTS
   eval_list <- list()
 
   for (seg_name in names(segments)) {
@@ -172,7 +172,7 @@ functional_traits <- function(
     )
   }
 
-  # ------------------ COMBINE SEGMENTS ------------------
+  # COMBINE SEGMENTS
 
   all_values_list <- list()
   time_list       <- list()
@@ -198,7 +198,7 @@ functional_traits <- function(
   all_sample_ids <- rep(sample_ids, times = length(eval_list))
   all_groups <- rep(groups, times = length(eval_list))
 
-  # ------------------ RE-SMOOTH COMBINED DATA ------------------
+  # RE-SMOOTH COMBINED DATA
   basis <- fda::create.bspline.basis(
     rangeval = range(common_time),
     norder = 4,
@@ -210,7 +210,7 @@ functional_traits <- function(
     y = all_values,
     fdParobj = fda::fdPar(basis, Lfdobj = 2, lambda = 1)
   )$fd
-  # ================== FPCA (ONCE PER DERIVATIVE) ==================
+  # FPCA (ONCE PER DERIVATIVE)
   trait_list <- list()
   score_list <- list()
   fpca_list  <- list()
@@ -237,7 +237,7 @@ functional_traits <- function(
 
     score_list[[paste0("deriv_", d)]] <- scores
 
-    # ------------------ PC summary traits ------------------
+    # PC summary traits
     pc_traits <- do.call(
       rbind,
       lapply(seq_len(ncol(scores) - 4), function(pc) {
@@ -269,7 +269,7 @@ functional_traits <- function(
       })
     )
   }
-  # ------------------ GEOMETRY TRAITS ------------------
+  # GEOMETRY TRAITS
   geom_traits <- do.call(
     rbind,
     split(scores, list(scores$group, scores$segment, scores$derivative),
@@ -312,7 +312,7 @@ functional_traits <- function(
     pc_traits,
     geom_traits
   )
-  # ================== RETURN ==================
+  # RETURN
   list(
     traits = do.call(rbind, trait_list),
     scores = do.call(rbind, score_list),

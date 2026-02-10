@@ -67,6 +67,7 @@
 #'   to = 144,
 #'   min_lum = 200,
 #'   periodogram_length = 48
+#'  plot(res$curves[,1],res$curves[,2])
 #' )
 filter_curves <- function(
     x,
@@ -77,13 +78,13 @@ filter_curves <- function(
     min_lum = 0,
     periodogram_length = NULL
 ) {
-  
+
   if (!any(apply(x, 2, is.numeric)))
     stop("values are NOT numeric")
-  
+
   if (!is.numeric(time))
     stop("Time must be a numeric vector")
-  
+
   ## ---- helpers ----
   rownumber <- function(time, from, to) {
     c(
@@ -91,16 +92,16 @@ filter_curves <- function(
       which.min(abs(time - to))
     )
   }
-  
+
   idx <- rownumber(time, from, to)
-  
+
   Curves_Timecut <- as.data.frame(x[idx[1]:idx[2], , drop = FALSE])
   time_cut <- time[idx[1]:idx[2]]
-  
+
   sample_ids <- colnames(Curves_Timecut)
   if (is.null(sample_ids))
     sample_ids <- paste0("curve_", seq_len(ncol(Curves_Timecut)))
-  
+
   ## ---- initialise removal log ----
   removed_df <- data.frame(
     Sample_id = character(),
@@ -108,12 +109,12 @@ filter_curves <- function(
     Reason    = character(),
     stringsAsFactors = FALSE
   )
-  
+
   ## ---- min lum filter ----
   min_lum_pass <- sapply(Curves_Timecut, function(z)
     min(z, na.rm = TRUE) > min_lum
   )
-  
+
   if (any(!min_lum_pass)) {
     removed_df <- rbind(
       removed_df,
@@ -125,34 +126,34 @@ filter_curves <- function(
       )
     )
   }
-  
+
   Curves_set_min <- Curves_Timecut[, min_lum_pass, drop = FALSE]
   if (ncol(Curves_set_min) == 0)
     return(list(curves = NULL, removed = removed_df))
-  
+
   ## ---- detrend ----
   tred <- apply(Curves_set_min, 2, function(y)
     lm(y ~ time_cut, na.action = na.exclude)
   )
-  
+
   detrend <- as.data.frame(
     sapply(seq_along(tred), function(i) residuals(tred[[i]]))
   )
   colnames(detrend) <- colnames(Curves_set_min)
-  
+
   ## ---- periodogram window ----
   if (is.null(periodogram_length))
     periodogram_length <- length(time_cut)
-  
+
   idxp <- rownumber(
     time_cut,
     max(time_cut) - periodogram_length,
     max(time_cut)
   )
-  
+
   time_p <- time_cut[idxp[1]:idxp[2]]
   det_p  <- detrend[idxp[1]:idxp[2], , drop = FALSE]
-  
+
   ## ---- lomb–scargle ----
   pero <- apply(det_p, 2, function(y)
     lomb::lsp(
@@ -165,16 +166,16 @@ filter_curves <- function(
       plot = FALSE
     )
   )
-  
+
   peaks <- sapply(seq_along(pero), function(i) {
     pk <- pracma::findpeaks(pero[[i]]$power, nups = 1, ndowns = 1)
     if (is.null(pk)) return(NA_real_)
     max(pk[, 1])
   })
-  
+
   keep_idx <- !is.na(peaks) &
     peaks > sapply(pero, `[[`, "sig.level")
-  
+
   if (any(!keep_idx)) {
     removed_df <- rbind(
       removed_df,
@@ -186,11 +187,11 @@ filter_curves <- function(
       )
     )
   }
-  
+
   Curves_filtered <- detrend[, keep_idx, drop = FALSE]
   if (ncol(Curves_filtered) == 0)
     return(list(curves = NULL, removed = removed_df))
-  
+
   ## ---- attach metadata if present ----
   if (!is.null(meta)) {
     removed_df <- merge(
@@ -207,17 +208,17 @@ filter_curves <- function(
     )
     removed_df$Genotype.meta <- NULL
   }
-  #meta data 
+  #meta data
   meta_kept <- NULL
   if (!is.null(meta)) {
     kept_ids <- colnames(Curves_filtered)
     meta_kept <- meta[meta$Sample_id %in% kept_ids, , drop = FALSE]
     meta_kept <- meta_kept[match(kept_ids, meta_kept$Sample_id), ]
   }
-  
+
   ## ---- final output ----
   finaldf <- cbind(time = time_cut, Curves_filtered)
-  
+
   list(
     curves    = finaldf,
     meta_kept = meta_kept,

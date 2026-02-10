@@ -14,8 +14,8 @@ Description: Provides a pipeline of tools for analysing circadian
     derivatives and optional temporal segmentation, enabling comparative 
     analysis of circadian dynamics across experimental groups and time 
     windows.
-URL: https://github.com/scllock/fdapipeline
-BugReports: https://github.com/scllock/fdapipeline/issues
+URL: https://github.com/scllock/TimeTraits
+BugReports: https://github.com/scllock/TimeTraits/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends:R (>= 3.5.0)
