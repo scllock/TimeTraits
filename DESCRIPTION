@@ -1,6 +1,6 @@
 Package: TimeTraits
 Type: Package
-Title: Functional Data Analysis Pipeline, Extracting Functional Traits form Biological Time-Series Data
+Title: Functional Data Analysis Pipeline, Extracting Functional Traits from Biological Time-Series Data
 Version: 1.1.0
 Authors@R: 
     person("Sarah", "Lock", 
