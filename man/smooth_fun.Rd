@@ -93,6 +93,7 @@ smooth_curves <- smooth_fun(
   lambda = 1,
   outlier = FALSE
 )
+plot(smooth_curves$smooth)
 
 
 

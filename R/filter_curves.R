@@ -67,8 +67,10 @@
 #'   to = 144,
 #'   min_lum = 200,
 #'   periodogram_length = 48
-#'  plot(res$curves[,1],res$curves[,2])
 #' )
+#' plot(res$curves[,1],res$curves[,2], xlab = "time", ylab = "relative luminescence")
+#' @export
+
 filter_curves <- function(
     x,
     time,

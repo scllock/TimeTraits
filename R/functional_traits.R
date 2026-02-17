@@ -63,7 +63,7 @@
 #'     group, segment, and derivative information.}
 #'   \item{fpca}{A named list of \code{\link[fda]{pca.fd}} objects, one per
 #'     derivative.}
-#'   \item{meta}{The metadata data frame aligned to the FPCA input order.Is two column dataframe with 'Sample_id' and Genotype"}
+#'   \item{meta}{The metadata data frame aligned to the FPCA input order. A two-column data frame containing \code{Sample_id} and \code{Genotype}.}
 #' }
 #'
 #' @details
@@ -73,25 +73,50 @@
 #' of FPCA scores across segments. Group-level traits are computed after FPCA
 #' and do not influence the decomposition itself.
 #'
-#' Convex hull area is computed in PC1--PC2 space only and requires at least
+#' Convex hull area is computed in PC1-PC2 space only and requires at least
 #' three samples per group and segment.
 #'
-#' @seealso \code{\link[fda]{pca.fd}}, \code{\link[fdapipeline]{smooth_fun}},
+#' @seealso \code{\link[fda]{pca.fd}}, \code{\link[TimeTraits]{smooth_fun}},
 #'   \code{\link[fda]{eval.fd}}
 #' @importFrom grDevices chull
 #' @export
 #' @examples
 #'
-#' time_vec <- matrix(seq(0, 48, length.out = 100))
-#' raw_data <- matrix(sin(2 * pi * time_vec / 24) +
-#' rnorm(100, 0, 0.1),ncol = 5,dimnames = list(NULL, c("C1", "C2", "C3","C4","C5")))
-#' smooth_data <- smooth_fun(raw_data, time_vec)
-#' meta_df <- data.frame(Sample_id = colnames(raw_data), Genotype = "A")
-#' fpca_res <- functional_traits(smooth_out = smooth_data$smooth,
-#' time = time_vec,meta= meta_df,n_pc= 2)
+#'time_vec <- matrix(seq(0, 48, length.out = 100))
+#'
+#'Genotype_A <- matrix(
+#' sin(2 * pi * (1:100) / 24) +
+#' matrix(rnorm(100 * 5, 0, 0.1), nrow = 100, ncol = 5),
+#' nrow = 100,
+#' ncol = 5,
+#' dimnames = list(NULL, paste0("A", 1:5)))
+#'
+#'Genotype_B <- matrix(
+#' 0.3 * sin(2 * pi * (1:100) / 24) +
+#' matrix(rnorm(100 * 5, 0, 0.5), nrow = 100, ncol = 5),
+#' nrow = 100,
+#' ncol = 5,
+#' dimnames = list(NULL, paste0("B", 1:5)))
+#'
+#'raw_data <- cbind(Genotype_A, Genotype_B)
+#'smooth_data <- smooth_fun(raw_data, time_vec)
+#'
+#'meta_df <- data.frame(
+#' Sample_id = colnames(raw_data),
+#' Genotype = rep(c("A", "B"), each = 5))
+#'
+#'fpca_res <- functional_traits(
+#' smooth_out = smooth_data$smooth,
+#' time = time_vec,
+#' meta = meta_df,
+#' n_pc = 2)
 #'
 #' head(fpca_res$traits)
-#' plot(fpca_res$scores[,1],fpca_res$scores[,2])
+#'
+#'cols <- c(A = "red", B = "blue")
+#'with(subset(fpca_res$scores, derivative == 0),
+#' plot(PC1, PC2, pch = 19, xlab = "PC1", ylab = "PC2", col = cols[group]))
+#'legend("topright", legend = names(cols), col = cols, pch = 19)
 #'
 
 functional_traits <- function(
