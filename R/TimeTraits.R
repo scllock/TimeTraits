@@ -1,12 +1,7 @@
-#' TimeTraits
+#' TimeTraits: Functional Data Analysis Pipeline, Extracting Functional Traits from Biological Time-Series Data.
 #'
-#' Contains functions for the analysis of biological time-series data.
-#'     Use four spaces when indenting paragraphs within the Description.
+#' Provides tools for analysing circadian time-series using functional
+#' data analysis, including smoothing, functional principal component
+#' analysis, and extraction of group-level traits.
 #'
-#' @aliases <TimeTraits>-package
-#' @name TimeTraits
-#'
-#' @author Sarah Lock \email{sarah.lock@york.ac.uk}
-#'
-NULL
-
+"_PACKAGE"
